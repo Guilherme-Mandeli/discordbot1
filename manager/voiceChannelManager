@@ -1,0 +1,82 @@
+const { client } = require("../src/requeriments");
+const { delay, getChannel, channelCache } = require("./utils");
+
+// Criar coleções para armazenar em cache os canais e os membros
+const nameChanges = new Map();
+
+/**
+* Realiza verificações e alterações nos nomes dos canais de voz com base nas mudanças de membros nos canais.
+*  @param {VoiceChannel} oldChannel - O canal de voz antigo do membro.
+*  @param {VoiceChannel} newChannel - O novo canal de voz do membro.
+*  @returns {Promise<void>} - Uma Promise que é resolvida após as verificações e alterações serem concluídas.
+*/
+async function thinkVoiceChannelName( oldChannel, newChannel ) {
+  // Verificar se o membro mudou para outro canal de voz
+  if (oldChannel !== newChannel) {
+    // Verificar se o membro entrou em um canal de voz
+    if (newChannel) {
+      // Verificar se o canal estava vazio antes
+      if (oldChannel && oldChannel.members.size === 0) {
+        const oldModifiedName = oldChannel.name.slice(1);
+        nameChanges.set(oldChannel.id, "⚫" + oldModifiedName);
+      }
+
+      // Verificar se o canal não estava marcado como verde
+      const existingName = nameChanges.get(newChannel.id);
+      if (!existingName || !existingName.startsWith("🟢")) {
+        // Verificar se há membros no canal após 5 segundos
+        await delay();
+        if (newChannel.members.size > 0) {
+          const newModifiedName = newChannel.name.slice(1);
+          nameChanges.set(newChannel.id, "🟢" + newModifiedName);
+          await applyVoiceChannelName();
+        } else {
+          const newModifiedName = newChannel.name.slice(1);
+          nameChanges.set(newChannel.id, "⚫" + newModifiedName);
+        }
+      }
+    } else if (oldChannel && oldChannel.members.size === 0) {
+      // Verificar se o canal estava vazio antes
+      const oldModifiedName = oldChannel.name.slice(1);
+      nameChanges.set(oldChannel.id, "⚫" + oldModifiedName);
+    }
+  } else if (newChannel && oldChannel && newChannel.members.size === 0 && oldChannel.members.size === 1) {
+    // Verificar se o último membro saiu do canal após 5 segundos
+    await delay();
+    const modifiedName = newChannel.name.slice(1);
+    nameChanges.set(newChannel.id, "⚫" + modifiedName);
+    await applyVoiceChannelName();
+  }
+}
+
+/**
+* Aplica as alterações nos nomes dos canais de voz.
+* @returns {Promise<void>} - Uma Promise que é resolvida após as alterações serem aplicadas.
+*/
+async function applyVoiceChannelName() {
+  const guild = client.guilds.cache.get(process.env.GUILD_ID);
+  const changes = [];
+
+  // Itera sobre as entradas do mapa de alterações de nome
+  for (const [channelId, newName] of nameChanges.entries()) {
+    // Obtém o canal a partir do ID e do guild
+    const channel = await getChannel(guild, channelId);
+    
+    if (channel) {
+      // Adiciona a alteração à lista de alterações
+      changes.push({ id: channelId, name: newName });
+      channel.setName(newName).catch(console.error);
+    }
+  }
+
+  nameChanges.clear();
+}
+
+module.exports = {
+  thinkVoiceChannelName,
+  applyVoiceChannelName,
+  nameChanges,
+  channelCache,
+  getChannel,
+  delay,
+};
