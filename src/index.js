@@ -10,7 +10,7 @@ const {
 } = require('../manager/voiceChannelManager');
 
 /*
- * Contents
+ * Content
  */
 client.on('ready', async () => {
 	nameChanges.clear();
